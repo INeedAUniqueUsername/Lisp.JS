@@ -1,7 +1,7 @@
 //var code = "(block (result1 result2) (set result1 (add 1 5)) (set result2 (add 5 6)))";
 //var code = "(divide (add (multiply 5 21) (divide 1 10) (add 1) 2 (subtract 0 10)) 100)";
 //code = '(add (set a 1000) a (multiply a a))';
-code = '(block () (block () (set a 10) (add a 10)))';
+code = '(cat "cat" (cat "abc" (add 1 2)))';
 var indent = function(level) {
     var result = '';
     for(var i = 0; i < level; i++)  {
@@ -14,48 +14,60 @@ var parse = function(codeString) {
     let layers = [];
     layers.push([]);
     let parsingSymbol = false;
+    let parsingString = false;
     for(let i = 0; i < codeString.length; ++i) {
         let c = codeString.charAt(i);
-        if(c === '(') {
-            if(parsingSymbol) {
-                let layer = layers[layers.length-1];
-                console.log(indent(layers.length-1) + 'Parsed Symbol: ' + layer[layer.length-1]);
-            }
-            console.log(indent(layers.length-1) + 'Parsing Layer');
-            
-            layers.push([]);
-            parsingSymbol = false;
-        } else if(c === ')') {
-            if(parsingSymbol) {
-                let layer = layers[layers.length-1];
-                console.log(indent(layers.length-1) + 'Parsed Symbol: ' + layer[layer.length-1]);
-            }
-            layers[layers.length-2].push(layers.pop());
-            
+        if(parsingString) {
             let layer = layers[layers.length-1];
-            console.log(indent(layers.length) + 'Parsed Layer: ' + decode(layer[layer.length-1]));
-            
-            parsingSymbol = false;
-        } else if(c === ' ') {
-            if(parsingSymbol) {
-                let layer = layers[layers.length-1];
-                console.log(indent(layers.length-1) + 'Parsed Symbol: ' + layer[layer.length-1]);
+            layer[layer.length-1] = layer[layer.length-1] + c;
+            if(c === '"') {
+                parsingString = false;
             }
-            
-            parsingSymbol = false;
         } else {
-            if(parsingSymbol) {
+            if(c === '(') {
+                if(parsingSymbol) {
+                    let layer = layers[layers.length-1];
+                    console.log(indent(layers.length-1) + 'Parsed Symbol: ' + layer[layer.length-1]);
+                }
+                console.log(indent(layers.length-1) + 'Parsing Layer');
+                
+                layers.push([]);
+                parsingSymbol = false;
+            } else if(c === ')') {
+                if(parsingSymbol) {
+                    let layer = layers[layers.length-1];
+                    console.log(indent(layers.length-1) + 'Parsed Symbol: ' + layer[layer.length-1]);
+                }
+                layers[layers.length-2].push(layers.pop());
+                
                 let layer = layers[layers.length-1];
-                layer[layer.length-1] = layer[layer.length-1] + c;
-                //console.log('Parsing Symbol');
-            } else {
-                //console.log('Parsing New Symbol');
-                parsingSymbol = true;
+                console.log(indent(layers.length) + 'Parsed Layer: ' + decode(layer[layer.length-1]));
+                
+                parsingSymbol = false;
+            } else if(c === ' ') {
+                if(parsingSymbol) {
+                    let layer = layers[layers.length-1];
+                    console.log(indent(layers.length-1) + 'Parsed Symbol: ' + layer[layer.length-1]);
+                }
+                
+                parsingSymbol = false;
+            } else if(c === '"') {
+                parsingString = true;
                 layers[layers.length-1].push(c);
+            } else {
+                if(parsingSymbol) {
+                    let layer = layers[layers.length-1];
+                    layer[layer.length-1] = layer[layer.length-1] + c;
+                    //console.log('Parsing Symbol');
+                } else {
+                    //console.log('Parsing New Symbol');
+                    parsingSymbol = true;
+                    layers[layers.length-1].push(c);
+                }
             }
-            
         }
-        //console.log(c);
+        
+        
     }
     return layers[0][0];
 }
@@ -127,6 +139,13 @@ var globals = {
             return (globals[args[0]] = run(args[1]));
         }
     },
+    cat: function(args) {
+        let result = '';
+        for(let i = 0; i < args.length; i++) {
+            result += destring(run(args[i]));
+        }
+        return '"' + result + '"';
+    },
     block: function(args) {
         let locals = args[0];
         let previousGlobals = {};
@@ -158,8 +177,29 @@ var globals = {
         return result;
     }
 }
+var isString = function(string) {
+    return typeof string === 'string' && string.startsWith('"') && string.endsWith('"');
+}
+var destring = function(string) {
+    if(!(typeof string === 'string')) {
+        return string;
+    }
+    if(string.startsWith('"')) {
+        string = string.substring(1);
+    }
+    if(string.endsWith('"')) {
+        string = string.substring(0, string.length-1);
+    }
+    return string;
+}
 var run = function(code) {
     if(!Array.isArray(code)) {
+        //Ignore strings
+        if(code.startsWith('"') && code.endsWith('"')) {
+            return code;
+        }
+        
+        //May be looking at a global
         let result = globals[code];
         if(result) {
             console.log(code + ' -> ' + result);

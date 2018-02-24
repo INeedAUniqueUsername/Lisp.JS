@@ -119,6 +119,10 @@ var globals = {
         //console.log("Index: " + index);
         return list[index];
     },
+    length: function(args) {
+        let list = eval(args[0]);
+        return list.length;
+    },
     if: function(args) {
         let condition = eval(args[0]);
         let path_true = args[1];
@@ -143,21 +147,14 @@ var globals = {
         }
         return false;
     },
-    //(xor condition1 condition2 condition3 ...) -> true if all expressions are neither all true nor all false
     xor: function(args) {
-        let truthValue = 0;
+        let trues = 0;
         for(var i = 0; i < args.length; i++) {
             if(truth(eval(args[i]))) {
-                truthValue++;
-            } else {
-                truthValue--;
+                trues++;
             }
         }
-        if(Math.abs(truthValue) === args.length) {
-            return false;
-        } else {
-            return true;
-        }
+        return trues%2 === 1;
     },
     not: function(args) {
         return !truth(eval(args[0]));
@@ -298,6 +295,9 @@ var globals = {
         }
     },
     link: function(codeString) {
+        if(Array.isArray(codeString)) {
+            codeString = decode(codeString);
+        }
         console.log('Parsing Code: ' + codeString);
         let layers = [];
         layers.push([]);
@@ -438,7 +438,25 @@ var globals = {
     }
 };
 var help = {
-    
+    add: '(add n1 n2 n3 ... nn) -> n1 + n2 + n3 + ... + nn',
+    subtract: '(subtract n1 n2 n3 ... nn) -> n1 - n2 - n3 - ... - nn',
+    multiply: '(multiply n1 n2b n3 ... nn) -> n1 * n2 * n3 * ... * nn',
+    divide: '(divide n1 n2 n3 ... nn) -> n1 / n2 / n3 / ... / nn',
+    power: '(power n e1 e2 e3 ... en) -> (((((n)^e1)^e2)^e3)^...)^en',
+    set: '(set var value) -> value; sets global named by var',
+    delete: '(delete var) -> value of global named by var before deleting',
+    cat: '(cat string1 string2 string3 ... stringn) -> concatenated string',
+    list: '(list item1 item2 item3 ... itemn) -> list of items',
+    append: '(append list1 list2 list3 ... listn) -> combined list',
+    at: '(at list index) -> item in list at index',
+    length: '(length list) -> length of list',
+    if: '(if condition path1 path2) -> if true, result of evaluating path1; otherwise, result of evaluating path2',
+    and: '(and condition1 condition2 condition3 ... conditionn) -> True if all conditions are True; otherwise False. Short circuit evaluation.',
+    or: '(or condition1 condition2 condition3 ... conditionn) -> True if at least one condition is True; otherwise False. Short circuit evaluation.',
+    xor: '(xor condition1 condition2 condition3 ...) -> True if number of true expressions is odd',
+    nand: '(nand condition1 condition2 condition3 ... conditionn) -> True if at least one condition is False; otherwise True. Short circuit evaluation.',
+    nor: '(nor condition1 condition2 condition3 ... conditionn) -> True if all conditions are False; otherwise True. Short circuit evaluation.',
+    xnor: '(xnor condition1 condition2 condition3 ...) -> True if number of true expressions is even; otherwise False.',
 };
 let truth = function(condition) {
     return condition || condition === 0;

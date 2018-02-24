@@ -13,129 +13,6 @@ var indent = function(level) {
     }
     return result;
 }
-var parse = function(codeString) {
-    console.log('Parsing Code: ' + codeString);
-    let layers = [];
-    layers.push([]);
-    let parsingSymbol = false;
-    let parsingString = false;
-    let parsingLiteral = false;
-    let parsingLiteralType = '';
-    let literalListParenCount = 0;
-    
-    for(let i = 0; i < codeString.length; ++i) {
-        let c = codeString.charAt(i);
-        let layer = layers[layers.length-1];
-        
-        if(parsingLiteral) {
-            if(c === ' ') {
-                //Only applies if we're parsing a literal list
-                if(literalListParenCount > 0) {
-                    //We're processing a literal list structure, so we append the characters
-                    layer[layer.length-1] += c;
-                } else {
-                    parsingLiteral = false;
-                }
-            } else if(c === ')') {
-                //Only applies if we're parsing a literal list
-                if(literalListParenCount > 0) {
-                    layer[layer.length-1] += c;
-                    literalListParenCount--;
-                }
-                if(literalListParenCount === 0) {
-                    parsingLiteral = false;
-                }
-            } else if(c === '(') {
-                //If we just started parsing this literal and the first char we find after the apostrophe is am open parenthesis, then we are looking at a list.
-                if(!parsingLiteralType) {
-                    parsingLiteralType = 'list';
-                }
-                
-                //If we're already parsing a literal list structure, then we found a nested list structure.
-                if(parsingLiteralType === 'list') {
-                    layer[layer.length-1] += c;
-                } else {
-                    //Immediately transition to parsing a new list literal
-                    //layers[layers.length-1].push(c);
-                    parsingLiteralType = 'list';
-                    layers[layers.length-1].push('\'');
-                    i--;
-                    
-                    //Prepare the string for use
-                    layer[layer.length-1] = '"' + layer[layer.length-1].substring(1) + '"';
-                }
-                literalListParenCount++;
-            } else {
-                if(!parsingLiteralType) {
-                    parsingLiteralType = 'string';
-                }
-                layer[layer.length-1] += c;
-            }
-            
-            //If we're done parsing a literal, then turn it into a string or a list
-            if(!parsingLiteral) {
-                if(parsingLiteralType === 'string') {
-                    layer[layer.length-1] = '"' + layer[layer.length-1].substring(1) + '"';
-                }
-            }
-        } else if(parsingString) {
-            let layer = layers[layers.length-1];
-            layer[layer.length-1] = layer[layer.length-1] + c;
-            if(c === '"') {
-                parsingString = false;
-            }
-        } else {
-            if(c === '(') {
-                if(parsingSymbol) {
-                    console.log(indent(layers.length-1) + 'Parsed Symbol: ' + layer[layer.length-1]);
-                }
-                console.log(indent(layers.length-1) + 'Parsing Layer');
-                
-                layers.push([]);
-                parsingSymbol = false;
-            } else if(c === ')') {
-                if(parsingSymbol) {
-                    console.log(indent(layers.length-1) + 'Parsed Symbol: ' + layer[layer.length-1]);
-                }
-                layers[layers.length-2].push(layers.pop());
-                
-                console.log(indent(layers.length) + 'Parsed Layer: ' + decode(layer[layer.length-1]));
-                
-                parsingSymbol = false;
-            } else if(c === ' ') {
-                if(parsingSymbol) {
-                    console.log(indent(layers.length-1) + 'Parsed Symbol: ' + layer[layer.length-1]);
-                }
-                
-                parsingSymbol = false;
-            } else if(c === '"') {
-                console.log(indent(layers.length-1) + 'Parsing String');
-                parsingString = true;
-                layers[layers.length-1].push(c);
-            } else if(c === '\'') {
-                console.log(indent(layers.length-1) + 'Parsing Literal');
-                parsingLiteral = true;
-                parsingLiteralType = '';
-                layers[layers.length-1].push(c);
-            } else {
-                if(parsingSymbol) {
-                    //Append the char to the existing symbol name
-                    layer[layer.length-1] = layer[layer.length-1] + c;
-                    //console.log('Parsing Symbol');
-                } else {
-                    //Found a new symbol; start counting characters in its name
-                    
-                    //console.log('Parsing New Symbol');
-                    parsingSymbol = true;
-                    layers[layers.length-1].push(c);
-                }
-            }
-        }
-        
-        
-    }
-    return layers[0][0];
-}
 var decode = function(code) {
     if(!Array.isArray(code)) {
         return code;
@@ -200,6 +77,15 @@ var globals = {
             return 'Missing arguments';
         } else {
             return (globals[args[0]] = eval(args[1]));
+        }
+    },
+    delete: function(args) {
+        if(args.length < 1) {
+            return 'Missing argument';
+        } else {
+            let value = globals[args[0]]
+            delete globals[args[0]];
+            return value;
         }
     },
     cat: function(args) {
@@ -333,7 +219,7 @@ var globals = {
     //(diverge path1 path2 path3 ... pathn)
     //Diverges the timeline towards one of the paths
     diverge: function(args) {
-        return eval(args[Math.floor(Math.random * args.length)]);
+        return eval(args[Math.floor(Math.random() * args.length)]);
     },
     block: function(args) {
         let locals = args[0];
@@ -371,7 +257,7 @@ var globals = {
                 return true;
             } else if(code === 'false') {
                 return false;
-            } else if(code.startsWith('"') && code.endsWith('"')) {
+            } else if(typeof code === 'string' && code.startsWith('"') && code.endsWith('"')) {
                 //Ignore strings
                 return code;
             }
@@ -410,8 +296,150 @@ var globals = {
                 return 'no binding for symbol [' + command + '] ### ' + decode(code) + ' ### ';
             }
         }
+    },
+    link: function(codeString) {
+        console.log('Parsing Code: ' + codeString);
+        let layers = [];
+        layers.push([]);
+        let parsingSymbol = false;
+        let parsingString = false;
+        let parsingLiteral = false;
+        let parsingLiteralType = '';
+        let literalListParenCount = 0;
+
+        for(let i = 0; i < codeString.length; ++i) {
+            let c = codeString.charAt(i);
+            let layer = layers[layers.length-1];
+
+            if(parsingLiteral) {
+                if(c === ' ') {
+                    //Only applies if we're parsing a literal list
+                    if(literalListParenCount > 0) {
+                        //We're processing a literal list structure, so we append the characters
+                        layer[layer.length-1] += c;
+                    } else {
+                        parsingLiteral = false;
+                    }
+                } else if(c === ')') {
+                    //Only applies if we're parsing a literal list
+                    if(literalListParenCount > 0) {
+                        layer[layer.length-1] += c;
+                        literalListParenCount--;
+                    }
+                    if(literalListParenCount === 0) {
+                        parsingLiteral = false;
+                    }
+                } else if(c === '(') {
+                    //If we just started parsing this literal and the first char we find after the apostrophe is am open parenthesis, then we are looking at a list.
+                    if(!parsingLiteralType) {
+                        parsingLiteralType = 'list';
+                    }
+
+                    //If we're already parsing a literal list structure, then we found a nested list structure.
+                    if(parsingLiteralType === 'list') {
+                        layer[layer.length-1] += c;
+                    } else {
+                        //Immediately transition to parsing a new list literal
+                        //layers[layers.length-1].push(c);
+                        parsingLiteralType = 'list';
+                        layers[layers.length-1].push('\'');
+                        i--;
+
+                        //Prepare the string for use
+                        layer[layer.length-1] = '"' + layer[layer.length-1].substring(1) + '"';
+                    }
+                    literalListParenCount++;
+                } else {
+                    if(!parsingLiteralType) {
+                        parsingLiteralType = 'string';
+                    }
+                    layer[layer.length-1] += c;
+                }
+
+                //If we're done parsing a literal, then turn it into a string or a list
+                if(!parsingLiteral) {
+                    if(parsingLiteralType === 'string') {
+                        layer[layer.length-1] = '"' + layer[layer.length-1].substring(1) + '"';
+                    }
+                }
+            } else if(parsingString) {
+                let layer = layers[layers.length-1];
+                layer[layer.length-1] = layer[layer.length-1] + c;
+                if(c === '"') {
+                    parsingString = false;
+                }
+            } else {
+                if(c === '(') {
+                    if(parsingSymbol) {
+                        console.log(indent(layers.length-1) + 'Parsed Symbol: ' + layer[layer.length-1]);
+                    }
+                    console.log(indent(layers.length-1) + 'Parsing Layer');
+
+                    layers.push([]);
+                    parsingSymbol = false;
+                } else if(c === ')') {
+                    if(parsingSymbol) {
+                        console.log(indent(layers.length-1) + 'Parsed Symbol: ' + layer[layer.length-1]);
+                    }
+                    layers[layers.length-2].push(layers.pop());
+
+                    console.log(indent(layers.length) + 'Parsed Layer: ' + decode(layer[layer.length-1]));
+
+                    parsingSymbol = false;
+                } else if(c === ' ') {
+                    if(parsingSymbol) {
+                        console.log(indent(layers.length-1) + 'Parsed Symbol: ' + layer[layer.length-1]);
+                    }
+
+                    parsingSymbol = false;
+                } else if(c === '"') {
+                    console.log(indent(layers.length-1) + 'Parsing String');
+                    parsingString = true;
+                    layers[layers.length-1].push(c);
+                } else if(c === '\'') {
+                    console.log(indent(layers.length-1) + 'Parsing Literal');
+                    parsingLiteral = true;
+                    parsingLiteralType = '';
+                    layers[layers.length-1].push(c);
+                } else {
+                    if(parsingSymbol) {
+                        //Append the char to the existing symbol name
+                        layer[layer.length-1] = layer[layer.length-1] + c;
+                        //console.log('Parsing Symbol');
+                    } else {
+                        //Found a new symbol; start counting characters in its name
+
+                        //console.log('Parsing New Symbol');
+                        parsingSymbol = true;
+                        layers[layers.length-1].push(c);
+                    }
+                }
+            }
+
+
+        }
+        return layers[0][0];
+    },
+    help: function(args) {
+        var arg = args[0];
+        if(arg) {
+            return help[arg] || (globals[arg] ? ('No help text available for ' + arg) : ('Unknown symbol [' + arg + ']'))
+        } else {
+            let result = '';
+            let globalKeys = Object.keys(globals);
+            globalKeys.sort();
+            for(let i = 0; i < globalKeys.length; i++) {
+                var g = globalKeys[i];
+                result += '\n' + (help[g] || 'No help text available for ' + g);
+            }
+            return result;
+        }
+        
     }
-}
+};
+var help = {
+    
+};
 let truth = function(condition) {
     return condition || condition === 0;
 };
@@ -433,6 +461,8 @@ var destring = function(string) {
 var eval = function(code) {
     return globals.eval(code);
 }
-
+var parse = function(codeString) {
+    return globals.link(codeString);
+}
 console.log(eval(parse(code)));
-'done'
+exports.run = function(code) { return eval(parse(code)); };

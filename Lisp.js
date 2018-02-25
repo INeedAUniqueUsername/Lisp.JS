@@ -123,11 +123,196 @@ var globals = {
         let list = eval(args[0]);
         return list.length;
     },
+    shuffle: function(args) {
+        let list = eval(args[0]);
+        for(let i = list.length-1; i > -1; i--) {
+            let roll = Math.floor(Math.random() * (i + 1));
+            [list[i], list[roll]] = [list[roll], list[i]];
+        }
+        return list;
+    },
+    sort: function(args) {
+        let list = eval(args[0]);
+        let comparator = eval(args[1]);
+        list.sort(comparator);
+        return list;
+    },
+    pick: function(args) {
+        let list = eval(args[0]);
+        let count = args[1] || 1;
+        let result = [];
+        for(let i = 0; i < count; i++) {
+            result.push(list[Math.random() * list.length]);
+        }
+        return result;
+    },
     if: function(args) {
         let condition = eval(args[0]);
         let path_true = args[1];
         let path_false = args[2];
         return truth(condition) ? eval(path_true) : eval(path_false);
+    },
+    for: function(args) {
+        let iterator = args[0];
+        let start = eval(args[1]);
+        let end = eval(args[2]);
+        let code = args[3];
+        let previous = globals[iterator];
+        let result;
+        for(globals[iterator] = start; globals[iterator] <= end; globals[iterator]++) {
+            result = eval(code);
+        }
+        globals[iterator] = previous;
+        return result;
+    },
+    while: function(args) {
+        let condition = args[0];
+        let code = args[1];
+        let result;
+        while(eval(condition)) {
+            result = eval(code);
+        }
+        return result;
+    },
+    until: function(args) {
+        let condition = args[0];
+        let code = args[1];
+        let result;
+        while(!eval(condition)) {
+            result = eval(code);
+        }
+        return result;
+    },
+    enum: function(args) {
+        let list = eval(args[0]);
+        let iterator = args[1];
+        let code = args[2];
+        let previous = globals[iterator];
+        let result;
+        for(let i = 0; i < list.length; i++) {
+            globals[iterator] = list[i];
+            result = eval(code);
+        }
+        globals[iterator] = previous;
+        return result;
+    },
+    filter: function(args) {
+        let list = eval(args[0]);
+        let iterator = args[1];
+        let condition = args[2];
+        
+        let previous = globals[iterator];
+        let result = [];
+        for(let i = 0; i < list.length; i++) {
+            let item = list[i];
+            globals[iterator] = item;
+            if(eval(condition)) {
+                result.push(item);
+            }
+        }
+        globals[iterator] = previous;
+        return result;
+    },
+    map: function(args) {
+        let list = eval(args[0]);
+        let iterator = args[1];
+        let code = args[2];
+        
+        let previous = globals[iterator];
+        for(let i = 0; i < list.length; i++) {
+            globals[iterator] = list[i];
+            list[i] = eval(code);
+        }
+        globals[iterator] = previous;
+        return list;
+    },
+    match: function(args) {
+        let list = eval(args[0]);
+        let iterator = args[1];
+        let condition = args[2];
+        
+        let previous = globals[iterator];
+        let result = [];
+        for(let i = 0; i < list.length; i++) {
+            let item = list[i];
+            globals[iterator] = item;
+            if(eval(condition)) {
+                return item;
+            }
+        }
+        return false;
+    },
+    cartesianproduct: function(args) {
+        if(args.length === 1) {
+            return eval(args[0]);
+        } else {
+            let result = [];
+            let firstSet = eval(args[0]);
+            for(let i = 0; i < firstSet.length; i++) {
+                let item = firstSet[i];
+                let subTuples = globals.cartesianproduct(args.slice(1));
+                for(let j = 0; j < subTuples.length; j++) {
+                    let subTuple = subTuples[j];
+                    if(!Array.isArray(subTuple)) {
+                        subTuple = [subTuple];
+                    }
+                    let tuple = subTuple.slice();
+                    tuple.unshift(item);
+                    result.push(tuple);
+                }
+            }
+            return result;
+        }
+    },
+    union: function(args) {
+        let result = [];
+        for(let i = 0; i < args.length; i++) {
+            let list = eval(args[i]);
+            for(let j = 0; j < args.length; j++) {
+                let item = list[j];
+                result.push(item);
+            }
+        }
+        return result;
+    },
+    intersection: function(args) {
+        let result = [];
+        let firstList = eval(args[0]);
+        for(let i = 0; i < firstList.length; i++) {
+            let item = firstList[i];
+            for(let j = 1; j < args.length; j++) {
+                let list = eval(args[i]);
+                if(list.includes(item)) {
+                    result.push(item);
+                }
+            }
+        }
+        return result;
+    },
+    lambda: function(args) {
+        let parameterList = args[0];
+        let code = args[1];
+        return function(args) {
+            let previous = [];
+            for(let i = 0; i < parameterList; i++) {
+                let parameter = parameterList[i];
+                //Save the global variables so that we can use local variables
+                previous[i] = globals[parameter];
+                //Set the global value to the argument value
+                globals[parameter] = args[i];
+            }
+            
+            //Run the function
+            let result = eval(code);
+            
+            //Restore the global variables
+            for(let i = 0; i < parameterList; i++) {
+                let parameter = parameterList[i];
+                globals[parameter] = previous[i];
+            }
+            
+            return result;
+        };
     },
     and: function(args) {
         let result;
@@ -226,7 +411,7 @@ var globals = {
                 let local = locals[i];
                 if(Array.isArray(local)) {
                     if(local.length > 2) {
-                        throw 'Too many arguments in local variable initialization';
+                        return 'Too many arguments in local variable initialization';
                     }
                     let name = local[0];
                     previousGlobals[name] = globals[name];
@@ -237,7 +422,7 @@ var globals = {
                 }
             }
         } else {
-            throw 'First argument must be array of local variables';
+            return 'First argument must be array of local variables';
         }
         let result = '';
         for(let i = 1; i < args.length; i++) {
@@ -270,14 +455,17 @@ var globals = {
             }
             return 'no binding for symbol [' + code + '] ### ' + decode(code) + ' ### ';
         } else {
-            let command = code[0];
+            let func = code[0];
             let args = [];
             for(var i = 1; i < code.length; i++) {
                 args.push(code[i]);
             }
             
-            //See if we're calling a function with our first argument
-            let func = globals[command];
+            //See if we're calling a lambda or a global with our first argument
+            if(typeof func !== 'function') {
+                func = globals[func];
+            }
+            
             if(typeof func === 'function') {
                 try {
                     let result = func(args);
@@ -285,12 +473,13 @@ var globals = {
                     return result;
                 } catch(error) {
                     return error + ' ### ' + decode(code) + ' ###';
+                    //throw error + ' ### ' + decode(code) + ' ###';
                 }
                 
             } else if(typeof func !== 'undefined') {
-                return 'not a function [' + command + '] ### ' + decode(code) + ' ### ';
+                return 'not a function [' + func + '] ### ' + decode(code) + ' ### ';
             } else {
-                return 'no binding for symbol [' + command + '] ### ' + decode(code) + ' ### ';
+                return 'no binding for symbol [' + func + '] ### ' + decode(code) + ' ### ';
             }
         }
     },
@@ -415,8 +604,6 @@ var globals = {
                     }
                 }
             }
-
-
         }
         return layers[0][0];
     },
@@ -434,8 +621,13 @@ var globals = {
             }
             return result;
         }
-        
-    }
+    },
+    log: function(args) {
+        let result;
+        for(let i = 0; i < args.length; i++) {
+            console.log('//' + eval(args[i]));
+        }
+    },
 };
 var help = {
     add: '(add n1 n2 n3 ... nn) -> n1 + n2 + n3 + ... + nn',

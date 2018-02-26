@@ -29,6 +29,7 @@ var decode = function(code) {
         return result;
     }
 }
+var callstack = [];
 var globals = {
     add: function(args) {
         let sum = 0;
@@ -71,6 +72,27 @@ var globals = {
             result = 1;
         }
         return base;
+    },
+    random: function(args) {
+        let count = args.length;
+        if(count === 0) {
+            return Math.random();
+        } else if(count === 1) {
+            let arg = eval(args[0]);
+            if(Array.isArray(arg)) {
+                return arg[Math.floor(Math.random() * arg.length)];
+            }
+            if(typeof arg === 'number') {
+                return Math.floor(Math.random() * arg);
+            }
+        } else if(count === 2) {
+            let min = eval(args[0]);
+            let range = eval(args[1]) - min;
+            return Math.floor(Math.random() * range) + min;
+        }
+    },
+    floor: function(args) {
+        return Math.floor(eval(args[0]));
     },
     set: function(args) {
         if(args.length < 2) {
@@ -153,6 +175,8 @@ var globals = {
         return truth(condition) ? eval(path_true) : eval(path_false);
     },
     for: function(args) {
+        let calls = 0;
+        
         let iterator = args[0];
         let start = eval(args[1]);
         let end = eval(args[2]);
@@ -161,29 +185,57 @@ var globals = {
         let result;
         for(globals[iterator] = start; globals[iterator] <= end; globals[iterator]++) {
             result = eval(code);
+            
+            if(++calls > 1000) {
+                throw 'infinite loop detected';
+            }
         }
         globals[iterator] = previous;
         return result;
     },
+    range: function(args) {
+        let start = eval(args[0]);
+        let end = eval(args[1]);
+        let result = [];
+        for(let i = start; i !== end; i = (i > end ? --i : ++i)) {
+            result.push(i);
+        }
+        result.push(end);
+        return result;
+    },
     while: function(args) {
+        let calls = 0;
+        
         let condition = args[0];
         let code = args[1];
         let result;
         while(eval(condition)) {
             result = eval(code);
+            
+            if(++calls > 1000) {
+                throw 'infinite loop detected';
+            }
         }
         return result;
     },
     until: function(args) {
+        let calls = 0;
+        
         let condition = args[0];
         let code = args[1];
         let result;
         while(!eval(condition)) {
             result = eval(code);
+            
+            if(++calls > 1000) {
+                throw 'infinite loop detected';
+            }
         }
         return result;
     },
     enum: function(args) {
+        let calls = 0;
+        
         let list = eval(args[0]);
         let iterator = args[1];
         let code = args[2];
@@ -192,6 +244,10 @@ var globals = {
         for(let i = 0; i < list.length; i++) {
             globals[iterator] = list[i];
             result = eval(code);
+            
+            if(++calls > 1000) {
+                throw 'infinite loop detected';
+            }
         }
         globals[iterator] = previous;
         return result;
@@ -433,6 +489,17 @@ var globals = {
         }
         return result;
     },
+    catch: function(args) {
+        try {
+            return eval(args[0]);
+        } catch(error) {
+            let errorGlobal = args[1];
+            let previousGlobal = globals[errorGlobal];
+            globals[errorGlobal] = error;
+            return eval(args[2]);
+            globals[errorGlobal] = previousGlobal;
+        }
+    },
     eval: function(code) {
         if(!Array.isArray(code)) {
             if(code === 'true') {
@@ -468,10 +535,16 @@ var globals = {
             
             if(typeof func === 'function') {
                 try {
+                    callstack.push(decode(code));
+                    if(callstack.length > 100) {
+                        throw 'stack overflow error';
+                    }
                     let result = func(args);
                     console.log(decode(code) + ' -> ' + result);
+                    callstack.pop();
                     return result;
                 } catch(error) {
+                    callstack.pop();
                     throw error + ' ### ' + decode(code) + ' ###';
                     //throw error + ' ### ' + decode(code) + ' ###';
                 }
@@ -622,6 +695,17 @@ var globals = {
             return result;
         }
     },
+    globals: function(args) {
+        let result = '';
+        let globalKeys = Object.keys(globals);
+        globalKeys.sort();
+        for(let i = 0; i < globalKeys.length-1; i++) {
+            var g = globalKeys[i];
+            result += g + ' ';
+        }
+        result += globalKeys[globalKeys.length-1];
+        return result;
+    },
     log: function(args) {
         let result;
         for(let i = 0; i < args.length; i++) {
@@ -649,6 +733,9 @@ var help = {
     nand: '(nand condition1 condition2 condition3 ... conditionn) -> True if at least one condition is False; otherwise True. Short circuit evaluation.',
     nor: '(nor condition1 condition2 condition3 ... conditionn) -> True if all conditions are False; otherwise True. Short circuit evaluation.',
     xnor: '(xnor condition1 condition2 condition3 ...) -> True if number of true expressions is even; otherwise False.',
+    race: '(race path1 path2 path3 ... pathn) -> result of last path executed' + '\n'
+        + '-Evaluates all expressions in random order, race condition guaranteed'
+    
 };
 let truth = function(condition) {
     return condition || condition === 0;
@@ -674,5 +761,6 @@ var eval = function(code) {
 var parse = function(codeString) {
     return globals.link(codeString);
 }
-console.log(eval(parse(code)));
+//console.log(eval(parse(code)));
 exports.run = function(code) { return eval(parse(code)); };
+exports.decode = function(code) { return decode(code); };

@@ -74,14 +74,14 @@ var globals = {
     },
     set: function(args) {
         if(args.length < 2) {
-            return 'Missing arguments';
+            throw 'Missing arguments';
         } else {
             return (globals[args[0]] = eval(args[1]));
         }
     },
     delete: function(args) {
         if(args.length < 1) {
-            return 'Missing argument';
+            throw 'Missing argument';
         } else {
             let value = globals[args[0]]
             delete globals[args[0]];
@@ -411,7 +411,7 @@ var globals = {
                 let local = locals[i];
                 if(Array.isArray(local)) {
                     if(local.length > 2) {
-                        return 'Too many arguments in local variable initialization';
+                        throw 'Too many arguments in local variable initialization';
                     }
                     let name = local[0];
                     previousGlobals[name] = globals[name];
@@ -422,7 +422,7 @@ var globals = {
                 }
             }
         } else {
-            return 'First argument must be array of local variables';
+            throw 'First argument must be array of local variables';
         }
         let result = '';
         for(let i = 1; i < args.length; i++) {
@@ -453,7 +453,7 @@ var globals = {
                 console.log(code + ' -> ' + result);
                 return result;
             }
-            return 'no binding for symbol [' + code + '] ### ' + decode(code) + ' ### ';
+            throw 'no binding for symbol [' + code + '] ### ' + decode(code) + ' ### ';
         } else {
             let func = code[0];
             let args = [];
@@ -472,14 +472,14 @@ var globals = {
                     console.log(decode(code) + ' -> ' + result);
                     return result;
                 } catch(error) {
-                    return error + ' ### ' + decode(code) + ' ###';
+                    throw error + ' ### ' + decode(code) + ' ###';
                     //throw error + ' ### ' + decode(code) + ' ###';
                 }
                 
             } else if(typeof func !== 'undefined') {
-                return 'not a function [' + func + '] ### ' + decode(code) + ' ### ';
+                throw 'not a function [' + func + '] ### ' + decode(code) + ' ### ';
             } else {
-                return 'no binding for symbol [' + func + '] ### ' + decode(code) + ' ### ';
+                throw 'no binding for symbol [' + func + '] ### ' + decode(code) + ' ### ';
             }
         }
     },

@@ -560,6 +560,8 @@ var globals = {
             }
         }
     },
+    //Convert a string of code into runnable list syntax
+    //Note: We don't support structs yet
     link: function(codeString) {
         if(Array.isArray(codeString)) {
             codeString = decode(codeString);
@@ -570,20 +572,23 @@ var globals = {
         let parsingSymbol = false;
         let parsingString = false;
         let parsingLiteral = false;
-        let parsingLiteralType = '';
+        let parsingLiteralType = '';        //Note: List literals don't really work right now. Just use (list)
         let literalListParenCount = 0;
 
         for(let i = 0; i < codeString.length; ++i) {
             let c = codeString.charAt(i);
             let layer = layers[layers.length-1];
-
+            
+            //We're parsing either a literal list or a literal string
             if(parsingLiteral) {
+                
                 if(c === ' ') {
                     //Only applies if we're parsing a literal list
                     if(literalListParenCount > 0) {
                         //We're processing a literal list structure, so we append the characters
                         layer[layer.length-1] += c;
                     } else {
+                        //In an apostrophe literal, a space marks the end of a string literal
                         parsingLiteral = false;
                     }
                 } else if(c === ')') {
@@ -592,6 +597,7 @@ var globals = {
                         layer[layer.length-1] += c;
                         literalListParenCount--;
                     }
+                    //We stop parsing a literal list when we find the last closing parenthesis. We also stop parsing a literal string.
                     if(literalListParenCount === 0) {
                         parsingLiteral = false;
                     }
@@ -605,7 +611,7 @@ var globals = {
                     if(parsingLiteralType === 'list') {
                         layer[layer.length-1] += c;
                     } else {
-                        //Immediately transition to parsing a new list literal
+                        //We are parsing a string literal, so we immediately stop parsing the string literal and transition to a new list literal
                         //layers[layers.length-1].push(c);
                         parsingLiteralType = 'list';
                         layers[layers.length-1].push('\'');
@@ -614,28 +620,35 @@ var globals = {
                         //Prepare the string for use
                         layer[layer.length-1] = '"' + layer[layer.length-1].substring(1) + '"';
                     }
+                    //We are either already parsing a list literal or we just transitioned to one
                     literalListParenCount++;
                 } else {
                     if(!parsingLiteralType) {
+                        //If we just started parsing a literal and the first character we encounter is alphanumeric, then we are parsing a string literal
                         parsingLiteralType = 'string';
                     }
+                    //Append this character to the resulting literal
                     layer[layer.length-1] += c;
                 }
 
                 //If we're done parsing a literal, then turn it into a string or a list
                 if(!parsingLiteral) {
                     if(parsingLiteralType === 'string') {
+                        //We always surround strings with quotes to differentiate them from other data types
                         layer[layer.length-1] = '"' + layer[layer.length-1].substring(1) + '"';
                     }
                 }
             } else if(parsingString) {
+                //Append this character to our current string
                 let layer = layers[layers.length-1];
                 layer[layer.length-1] = layer[layer.length-1] + c;
+                //Stop parsing if we find a closing quote
                 if(c === '"') {
                     parsingString = false;
                 }
             } else {
                 if(c === '(') {
+                    //Opening parenthesis means that we are parsing a new layer. We also prepare to parse a function symbol immediately after.
                     if(parsingSymbol) {
                         console.log(indent(layers.length-1) + 'Parsed Symbol: ' + layer[layer.length-1]);
                     }
@@ -644,6 +657,7 @@ var globals = {
                     layers.push([]);
                     parsingSymbol = false;
                 } else if(c === ')') {
+                    //Opening parenthesis means that we are done parsing the current layer. We stop parsing a symbol in case this closing parenthesis is directly after the symbol.
                     if(parsingSymbol) {
                         console.log(indent(layers.length-1) + 'Parsed Symbol: ' + layer[layer.length-1]);
                     }
@@ -653,16 +667,19 @@ var globals = {
 
                     parsingSymbol = false;
                 } else if(c === ' ') {
+                    //Space means that we are done parsing the current symbol
                     if(parsingSymbol) {
                         console.log(indent(layers.length-1) + 'Parsed Symbol: ' + layer[layer.length-1]);
                     }
 
                     parsingSymbol = false;
                 } else if(c === '"') {
+                    //Check if we are parsing a string. Keep the quotes to differentiate the string from other data types
                     console.log(indent(layers.length-1) + 'Parsing String');
                     parsingString = true;
                     layers[layers.length-1].push(c);
                 } else if(c === '\'') {
+                    //Apostrophe means we are parsing a literal (either a string or a list)
                     console.log(indent(layers.length-1) + 'Parsing Literal');
                     parsingLiteral = true;
                     parsingLiteralType = '';

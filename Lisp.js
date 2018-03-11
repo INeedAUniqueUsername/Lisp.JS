@@ -336,11 +336,15 @@ var globals = {
         let firstList = eval(args[0]);
         for(let i = 0; i < firstList.length; i++) {
             let item = firstList[i];
+            let includes = true;
             for(let j = 1; j < args.length; j++) {
-                let list = eval(args[i]);
-                if(list.includes(item)) {
-                    result.push(item);
+                let list = eval(args[j]);
+                if(!list.includes(item)) {
+                    includes = false;
                 }
+            }
+            if(includes) {
+                result.push(item);
             }
         }
         return result;
